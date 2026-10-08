@@ -1,0 +1,129 @@
+@model IndexWMSProject.Models.B2BOrder
+@{
+    ViewData["Title"] = "RF Terminal";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card border-0 shadow rounded-4 overflow-hidden">
+            <div class="card-header bg-dark text-white p-3 text-center border-0">
+                <h5 class="mb-0 fw-bold"><i class="fa-solid fa-mobile-screen me-2"></i> RF Terminal Simülasyonu</h5>
+                <small class="text-white-50">Sipariş: @Model.OrderNumber</small>
+            </div>
+            
+            <div class="card-body p-4 bg-light">
+                <div class="alert alert-info border-0 rounded-3 shadow-sm mb-4">
+                    <div class="d-flex align-items-center">
+                        <i class="fa-solid fa-circle-info fa-2x me-3"></i>
+                        <div>
+                            <strong>Test İçin Barkodlar:</strong><br />
+                            @foreach(var item in Model.Items)
+                            {
+                                <span class="badge bg-secondary me-1 mb-1">@item.Product.Barcode</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-muted">Ürün Barkodu Okut</label>
+                    <div class="input-group input-group-lg shadow-sm">
+                        <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-barcode text-primary"></i></span>
+                        <input type="text" id="barcodeInput" class="form-control border-start-0 ps-0" placeholder="Barkodu girin veya okutun..." autofocus>
+                        <button class="btn btn-primary px-4 fw-bold" type="button" id="btnScan">OKUT</button>
+                    </div>
+                </div>
+
+                <div id="scanResult" class="mb-4 text-center" style="display:none;"></div>
+
+                <h6 class="fw-bold mb-3 border-bottom pb-2">Toplama Listesi</h6>
+                <ul class="list-group list-group-flush bg-transparent" id="pickingList">
+                    @foreach (var item in Model.Items)
+                    {
+                        <li class="list-group-item bg-transparent px-0 d-flex justify-content-between align-items-center border-bottom-dashed" id="item-@item.Product.Barcode">
+                            <div>
+                                <div class="fw-bold text-dark">@item.Product.Name</div>
+                                <div class="small text-muted">
+                                    <i class="fa-solid fa-location-dot me-1"></i> @item.Product.Location | Barkod: @item.Product.Barcode
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-primary rounded-pill fs-6 mb-1">Adet: @item.Quantity</span><br/>
+                                @if (item.IsPicked)
+                                {
+                                    <span class="text-success small fw-bold status-text"><i class="fa-solid fa-check-circle"></i> Toplandı</span>
+                                }
+                                else
+                                {
+                                    <span class="text-danger small fw-bold status-text"><i class="fa-solid fa-circle-xmark"></i> Bekliyor</span>
+                                }
+                            </div>
+                        </li>
+                    }
+                </ul>
+
+                <div class="mt-4 text-center">
+                    <a asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4"><i class="fa-solid fa-arrow-left me-1"></i> Listeye Dön</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .border-bottom-dashed { border-bottom: 1px dashed #dee2e6; }
+</style>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            var input = $('#barcodeInput');
+            var btn = $('#btnScan');
+            var resultDiv = $('#scanResult');
+
+            function scan() {
+                var barcode = input.val().trim();
+                if (!barcode) return;
+
+                btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i>');
+
+                $.post('@Url.Action("ScanBarcode", "Wms")', { orderId: @Model.Id, barcode: barcode }, function(data) {
+                    btn.prop('disabled', false).text('OKUT');
+                    input.val('').focus();
+                    
+                    if (data.success) {
+                        resultDiv.html('<div class="alert alert-success border-0 shadow-sm py-2"><i class="fa-solid fa-check-circle me-1"></i> ' + data.message + '<br><b>' + data.productName + '</b></div>').show();
+                        
+                        // Update UI item list
+                        var li = $('#item-' + barcode);
+                        li.find('.status-text').removeClass('text-danger').addClass('text-success')
+                          .html('<i class="fa-solid fa-check-circle"></i> Toplandı');
+                          
+                        // Add highlight animation
+                        li.css('background-color', '#d1e7dd').animate({backgroundColor: 'transparent'}, 1500);
+
+                        if(data.orderStatus === 'Shipped'){
+                             setTimeout(function(){
+                                 alert("Tebrikler! Siparişteki tüm ürünler toplandı. Sipariş sevk edildi durumunda.");
+                                 window.location.href = '@Url.Action("Index", "Wms")';
+                             }, 1500);
+                        }
+
+                    } else {
+                        resultDiv.html('<div class="alert alert-danger border-0 shadow-sm py-2"><i class="fa-solid fa-triangle-exclamation me-1"></i> ' + data.message + '</div>').show();
+                    }
+                    
+                    setTimeout(function(){ resultDiv.fadeOut(); }, 3000);
+                });
+            }
+
+            btn.click(scan);
+            input.keypress(function(e) {
+                if (e.which == 13) {
+                    scan();
+                    return false;
+                }
+            });
+        });
+    </script>
+}
